@@ -1,6 +1,7 @@
 // ========================================
 // FLOMIS DASHBOARD - app.js
 // Firebase v10 (Modular)
+// Updated for PS3 with 3 pumps
 // ========================================
 
 import { initializeApp } from
@@ -20,7 +21,6 @@ const firebaseConfig = {
   messagingSenderId: "158183788445",
   appId: "1:158183788445:web:160f29edea46c8546f6974"
 };
-
 
 // ========================================
 // INIT FIREBASE
@@ -72,6 +72,84 @@ function createStationCard(id, station) {
   const card = document.createElement("div");
   card.className = "station-card";
 
+  // ---- Check if this is PS3 (multiple pumps) ----
+  const isPS3 = id === "ps03_ekdee";
+
+  // Build telemetry grid based on station type
+  let telemetryHTML = "";
+  
+  if (isPS3) {
+    // PS3 has 3 separate pump currents
+    telemetryHTML = `
+      <div class="telemetry-grid">
+        <div class="telemetry-item">
+          <div class="telemetry-label">Pump 1 Current</div>
+          <div class="telemetry-value">
+            ${telemetry.pump_1_current?.value ?? 0}
+            <span class="telemetry-unit">
+              ${telemetry.pump_1_current?.unit ?? "A"}
+            </span>
+          </div>
+        </div>
+
+        <div class="telemetry-item">
+          <div class="telemetry-label">Pump 2 Current</div>
+          <div class="telemetry-value">
+            ${telemetry.pump_2_current?.value ?? 0}
+            <span class="telemetry-unit">
+              ${telemetry.pump_2_current?.unit ?? "A"}
+            </span>
+          </div>
+        </div>
+
+        <div class="telemetry-item">
+          <div class="telemetry-label">Pump 3 Current</div>
+          <div class="telemetry-value">
+            ${telemetry.pump_3_current?.value ?? 0}
+            <span class="telemetry-unit">
+              ${telemetry.pump_3_current?.unit ?? "A"}
+            </span>
+          </div>
+        </div>
+
+        <div class="telemetry-item">
+          <div class="telemetry-label">Water Level</div>
+          <div class="telemetry-value">
+            ${telemetry.water_level?.value ?? 0}
+            <span class="telemetry-unit">
+              ${telemetry.water_level?.unit ?? "m"}
+            </span>
+          </div>
+        </div>
+      </div>
+    `;
+  } else {
+    // PS1 and PS2 have single pump current
+    telemetryHTML = `
+      <div class="telemetry-grid">
+        <div class="telemetry-item">
+          <div class="telemetry-label">Pump Current</div>
+          <div class="telemetry-value">
+            ${telemetry.pump_current?.value ?? 0}
+            <span class="telemetry-unit">
+              ${telemetry.pump_current?.unit ?? "A"}
+            </span>
+          </div>
+        </div>
+
+        <div class="telemetry-item">
+          <div class="telemetry-label">Water Level</div>
+          <div class="telemetry-value">
+            ${telemetry.water_level?.value ?? 0}
+            <span class="telemetry-unit">
+              ${telemetry.water_level?.unit ?? "m"}
+            </span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   card.innerHTML = `
     <div class="station-header">
       <div class="station-name">${station.name}</div>
@@ -82,27 +160,7 @@ function createStationCard(id, station) {
 
     ${staleWarning}
 
-    <div class="telemetry-grid">
-      <div class="telemetry-item">
-        <div class="telemetry-label">Pump Current</div>
-        <div class="telemetry-value">
-          ${telemetry.pump_current?.value ?? 0}
-          <span class="telemetry-unit">
-            ${telemetry.pump_current?.unit ?? "A"}
-          </span>
-        </div>
-      </div>
-
-      <div class="telemetry-item">
-        <div class="telemetry-label">Water Level</div>
-        <div class="telemetry-value">
-          ${telemetry.water_level?.value ?? 0}
-          <span class="telemetry-unit">
-            ${telemetry.water_level?.unit ?? "m"}
-          </span>
-        </div>
-      </div>
-    </div>
+    ${telemetryHTML}
 
     <div class="runtime-section">
       <div class="runtime-item">
