@@ -12,15 +12,15 @@ import { getDatabase, ref, onValue } from
 // FIREBASE CONFIG (REPLACE WITH YOUR OWN)
 // ========================================
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  databaseURL:
-    "https://YOUR_PROJECT_ID-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyDgrCOFGgdIq4xfcOFdW55AOFHJd3zGcOw",
+  authDomain: "flomis-didsibu.firebaseapp.com",
+  databaseURL: "https://flomis-didsibu-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "flomis-didsibu",
+  storageBucket: "flomis-didsibu.firebasestorage.app",
+  messagingSenderId: "158183788445",
+  appId: "1:158183788445:web:160f29edea46c8546f6974"
 };
+
 
 // ========================================
 // INIT FIREBASE
