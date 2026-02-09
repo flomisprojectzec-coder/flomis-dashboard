@@ -1,3 +1,5 @@
+console.log("🔥 FLOMIS app.js LOADED");
+
 // ========================================
 // FLOMIS DASHBOARD - app.js
 // Firebase v10 (Modular)
