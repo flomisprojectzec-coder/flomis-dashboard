@@ -141,7 +141,7 @@ function loadPumpStations() {
   container.innerHTML =
     '<div class="loading">Loading pump stations...</div>';
 
-  const stationsRef = ref(database, "pump_stations");
+  const stationsRef = ref(database, "pump_stations/pump_stations");
 
   onValue(
     stationsRef,
