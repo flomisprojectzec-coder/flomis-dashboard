@@ -1,7 +1,7 @@
 // ========================================
 // FLOMIS DASHBOARD - app.js
 // Firebase v10 (Modular)
-// With REALISTIC PUMP CYCLING DEMO
+// With REALISTIC STAGGERED PUMP CYCLING
 // ========================================
 
 import { initializeApp } from
@@ -33,38 +33,37 @@ const database = getDatabase(app);
 // ========================================
 const MOCK_MODE = true;        // 🔴 SET false when hardware is live
 const MOCK_INTERVAL = 5000;    // ms (5 seconds - for display update)
-const CYCLE_DURATION = 2 * 60 * 1000;  // 2 minutes per pump
-const MAX_CYCLES = 20;         // 20 start/stop cycles
+const CYCLE_DURATION = 2 * 60 * 1000;  // 2 minutes per pump switch
+const MAX_CYCLES = 20;         // 20 start/stop cycles total
 const REST_DURATION = 60 * 60 * 1000;  // 1 hour rest
+
+// ========================================
+// GLOBAL CYCLE STATE
+// ========================================
+const globalCycle = {
+  cycleCount: 0,
+  cyclePattern: 0,  // 0, 1, 2 (repeating pattern)
+  lastSwitchTime: Date.now(),
+  isResting: false,
+  restStartTime: null
+};
 
 // ========================================
 // PUMP CYCLE STATE TRACKING
 // ========================================
 const pumpState = {
   ps01_engkabang: {
-    cycleCount: 0,
     activePump: 1,  // PS1 has 1 pump (always pump 1)
-    lastSwitchTime: Date.now(),
-    isResting: false,
-    restStartTime: null,
     highWaterLevel: 2.5,
     lowWaterLevel: 1.7
   },
   ps02_resan: {
-    cycleCount: 0,
     activePump: 1,  // PS2 has 1 pump (always pump 1)
-    lastSwitchTime: Date.now(),
-    isResting: false,
-    restStartTime: null,
     highWaterLevel: 2.3,
     lowWaterLevel: 1.7
   },
   ps03_ekdee: {
-    cycleCount: 0,
     activePump: 1,  // PS3 has 3 pumps, start with pump 1
-    lastSwitchTime: Date.now(),
-    isResting: false,
-    restStartTime: null,
     highWaterLevel: 2.0,
     lowWaterLevel: 1.7
   }
@@ -93,45 +92,67 @@ function random(min, max, decimals = 1) {
 }
 
 // ========================================
-// PUMP CYCLE LOGIC
+// GLOBAL CYCLE LOGIC
 // ========================================
-function updatePumpCycle(stationId) {
-  const state = pumpState[stationId];
+function updateGlobalCycle() {
   const now = Date.now();
-  const timeSinceSwitch = now - state.lastSwitchTime;
+  const timeSinceSwitch = now - globalCycle.lastSwitchTime;
 
   // Check if in rest period
-  if (state.isResting) {
-    const restTime = now - state.restStartTime;
+  if (globalCycle.isResting) {
+    const restTime = now - globalCycle.restStartTime;
     if (restTime >= REST_DURATION) {
-      // Rest complete, reset cycle
-      state.isResting = false;
-      state.cycleCount = 0;
-      state.activePump = 1;
-      state.lastSwitchTime = now;
+      // Rest complete, reset everything
+      globalCycle.isResting = false;
+      globalCycle.cycleCount = 0;
+      globalCycle.cyclePattern = 0;
+      globalCycle.lastSwitchTime = now;
+      // Reset all pumps to pump 1
+      pumpState.ps03_ekdee.activePump = 1;
     }
     return; // Stay in rest mode
   }
 
-  // Check if it's time to switch pumps (2 minutes elapsed)
+  // Check if it's time to switch (2 minutes elapsed)
   if (timeSinceSwitch >= CYCLE_DURATION) {
-    state.cycleCount++;
+    globalCycle.cycleCount++;
     
     // Check if reached 20 cycles
-    if (state.cycleCount >= MAX_CYCLES) {
-      state.isResting = true;
-      state.restStartTime = now;
-      state.activePump = 0; // No pump running
+    if (globalCycle.cycleCount >= MAX_CYCLES) {
+      globalCycle.isResting = true;
+      globalCycle.restStartTime = now;
       return;
     }
 
-    // Alternate pump for PS3 (has 3 pumps)
-    if (stationId === "ps03_ekdee") {
-      state.activePump = (state.activePump % 3) + 1; // Cycle 1→2→3→1
-    }
-    // PS1 and PS2 always use pump 1
+    // Advance pattern: 0 → 1 → 2 → 0 (repeating)
+    globalCycle.cyclePattern = (globalCycle.cyclePattern + 1) % 3;
     
-    state.lastSwitchTime = now;
+    // Rotate PS3 pump on each switch
+    pumpState.ps03_ekdee.activePump = (pumpState.ps03_ekdee.activePump % 3) + 1;
+    
+    globalCycle.lastSwitchTime = now;
+  }
+}
+
+// ========================================
+// DETERMINE IF STATION SHOULD RUN
+// ========================================
+function shouldStationRun(stationId) {
+  if (globalCycle.isResting) return false;
+  
+  // Pattern 0: Ek Dee + Resan only
+  // Pattern 1: All 3 stations
+  // Pattern 2: Ek Dee only
+  
+  switch (globalCycle.cyclePattern) {
+    case 0: // Ek Dee + Resan
+      return stationId === "ps03_ekdee" || stationId === "ps02_resan";
+    case 1: // All stations
+      return true;
+    case 2: // Ek Dee only
+      return stationId === "ps03_ekdee";
+    default:
+      return false;
   }
 }
 
@@ -143,15 +164,16 @@ function generateMockStation(id, name) {
   const state = pumpState[id];
   const now = new Date().toISOString();
 
-  // Update cycle logic
-  updatePumpCycle(id);
+  // Update global cycle
+  updateGlobalCycle();
 
+  // Determine if this station should be running
+  const shouldRun = shouldStationRun(id);
+  
   // Determine water level (HIGH during cycles, LOW during rest)
-  const waterLevel = state.isResting ? state.lowWaterLevel : state.highWaterLevel;
+  const waterLevel = globalCycle.isResting ? state.lowWaterLevel : state.highWaterLevel;
 
-  // Determine if pump is running
-  const isPumpRunning = !state.isResting;
-  const status = isPumpRunning ? "RUNNING" : "STOPPED";
+  const status = shouldRun ? "RUNNING" : "STOPPED";
 
   let telemetry = {
     status: status,
@@ -165,23 +187,23 @@ function generateMockStation(id, name) {
   };
 
   if (isPS3) {
-    // PS3 has 3 pumps - only active pump runs
+    // PS3 has 3 pumps - only active pump runs (if station should run)
     telemetry.pump_1_current = { 
-      value: (state.activePump === 1 && isPumpRunning) ? random(15, 25) : 0, 
+      value: (state.activePump === 1 && shouldRun) ? random(15, 25) : 0, 
       unit: "A" 
     };
     telemetry.pump_2_current = { 
-      value: (state.activePump === 2 && isPumpRunning) ? random(15, 25) : 0, 
+      value: (state.activePump === 2 && shouldRun) ? random(15, 25) : 0, 
       unit: "A" 
     };
     telemetry.pump_3_current = { 
-      value: (state.activePump === 3 && isPumpRunning) ? random(15, 25) : 0, 
+      value: (state.activePump === 3 && shouldRun) ? random(15, 25) : 0, 
       unit: "A" 
     };
   } else {
     // PS1 and PS2 have 1 pump
     telemetry.pump_current = { 
-      value: isPumpRunning ? random(12, 22) : 0, 
+      value: shouldRun ? random(12, 22) : 0, 
       unit: "A" 
     };
   }
@@ -190,8 +212,8 @@ function generateMockStation(id, name) {
     name,
     telemetry,
     runtime: {
-      last_start_time: isPumpRunning ? new Date(state.lastSwitchTime).toISOString() : null,
-      last_stop_time: !isPumpRunning && state.isResting ? new Date(state.restStartTime).toISOString() : null
+      last_start_time: shouldRun ? new Date(globalCycle.lastSwitchTime).toISOString() : null,
+      last_stop_time: !shouldRun && globalCycle.isResting ? new Date(globalCycle.restStartTime).toISOString() : null
     }
   };
 }
@@ -221,28 +243,6 @@ function createStationCard(id, station) {
 
   const card = document.createElement("div");
   card.className = "station-card";
-
-  // ---- Cycle info badge (DEMO ONLY) ----
-  const state = pumpState[id];
-  let cycleInfo = "";
-  if (MOCK_MODE) {
-    if (state.isResting) {
-      const restRemaining = Math.ceil((REST_DURATION - (Date.now() - state.restStartTime)) / 1000 / 60);
-      cycleInfo = `
-        <div style="background:#fef3c7; padding:6px; margin-bottom:10px; border-radius:4px; font-size:12px; text-align:center;">
-          🛑 Resting - ${restRemaining} min remaining
-        </div>
-      `;
-    } else {
-      const switchRemaining = Math.ceil((CYCLE_DURATION - (Date.now() - state.lastSwitchTime)) / 1000);
-      cycleInfo = `
-        <div style="background:#dbeafe; padding:6px; margin-bottom:10px; border-radius:4px; font-size:12px; text-align:center;">
-          Cycle ${state.cycleCount + 1}/${MAX_CYCLES} • Switch in ${switchRemaining}s
-          ${id === "ps03_ekdee" ? ` • Active: Pump ${state.activePump}` : ''}
-        </div>
-      `;
-    }
-  }
 
   // ---- Check if this is PS3 (multiple pumps) ----
   const isPS3 = id === "ps03_ekdee";
@@ -330,7 +330,6 @@ function createStationCard(id, station) {
       </span>
     </div>
 
-    ${cycleInfo}
     ${staleWarning}
 
     ${telemetryHTML}
