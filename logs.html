@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FLOMIS - Event Logs</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* Additional styles for logs page */
+    .logs-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .logs-controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .btn-primary {
+      background: #2563eb;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #1d4ed8;
+    }
+
+    .btn-secondary {
+      background: #6b7280;
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      background: #4b5563;
+    }
+
+    .filter-group {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .filter-select {
+      padding: 8px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    .logs-table-container {
+      background: white;
+      border-radius: 6px;
+      overflow-x: auto;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+    }
+
+    .logs-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .logs-table th {
+      background: #f9fafb;
+      padding: 12px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 13px;
+      color: #374151;
+      border-bottom: 2px solid #e5e7eb;
+      white-space: nowrap;
+    }
+
+    .logs-table td {
+      padding: 12px;
+      border-bottom: 1px solid #f3f4f6;
+      font-size: 14px;
+    }
+
+    .logs-table tr:hover {
+      background: #f9fafb;
+    }
+
+    .event-badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .event-start {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .event-stop {
+      background: #e5e7eb;
+      color: #374151;
+    }
+
+    .event-trip {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .event-cycle {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
+    .event-rest {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .log-count {
+      font-size: 14px;
+      color: #6b7280;
+    }
+
+    .back-link {
+      color: #2563eb;
+      text-decoration: none;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .back-link:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <!-- ===================================== -->
+  <!-- HEADER -->
+  <!-- ===================================== -->
+  <header class="main-header">
+    <div>
+      <h1>FLOMIS - Event Logs</h1>
+      <p class="subtitle">
+        Flood Mitigation Pump House Information System
+      </p>
+    </div>
+  </header>
+
+  <!-- ===================================== -->
+  <!-- MAIN CONTENT -->
+  <!-- ===================================== -->
+  <main>
+    <div class="logs-header">
+      <div>
+        <a href="index.html" class="back-link">← Back to Dashboard</a>
+        <p class="log-count" id="log-count">Loading logs...</p>
+      </div>
+      <div class="logs-controls">
+        <div class="filter-group">
+          <label for="station-filter">Station:</label>
+          <select id="station-filter" class="filter-select">
+            <option value="all">All Stations</option>
+            <option value="ps01_engkabang">PS1 Engkabang</option>
+            <option value="ps02_resan">PS2 Resan</option>
+            <option value="ps03_ekdee">PS3 Ek Dee</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="event-filter">Event:</label>
+          <select id="event-filter" class="filter-select">
+            <option value="all">All Events</option>
+            <option value="PUMP_START">Pump Start</option>
+            <option value="PUMP_STOP">Pump Stop</option>
+            <option value="TRIP">Trip/Fault</option>
+            <option value="CYCLE_COMPLETE">Cycle Complete</option>
+            <option value="REST_START">Rest Start</option>
+            <option value="REST_END">Rest End</option>
+          </select>
+        </div>
+        <button id="download-csv" class="btn btn-primary">📥 Download CSV</button>
+        <button id="refresh-logs" class="btn btn-secondary">🔄 Refresh</button>
+      </div>
+    </div>
+
+    <div class="logs-table-container">
+      <table class="logs-table">
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Station</th>
+            <th>Event</th>
+            <th>Details</th>
+            <th>Water Level</th>
+            <th>Pump Current</th>
+            <th>Duration</th>
+          </tr>
+        </thead>
+        <tbody id="logs-table-body">
+          <tr>
+            <td colspan="7" style="text-align: center; padding: 40px;">
+              Loading logs...
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <!-- ===================================== -->
+  <!-- FOOTER -->
+  <!-- ===================================== -->
+  <footer class="main-footer">
+    <p>© DID Sibu • FLOMIS v1.0</p>
+  </footer>
+
+  <script type="module" src="logs.js"></script>
+</body>
+</html>
