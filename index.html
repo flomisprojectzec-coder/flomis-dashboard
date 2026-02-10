@@ -6,16 +6,52 @@
   <title>FLOMIS Dashboard</title>
   <!-- Main stylesheet -->
   <link rel="stylesheet" href="style.css" />
+  <style>
+    /* Header button styling */
+    .header-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .logs-button {
+      background: #3b82f6;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .logs-button:hover {
+      background: #2563eb;
+    }
+  </style>
 </head>
 <body>
   <!-- ===================================== -->
   <!-- HEADER -->
   <!-- ===================================== -->
   <header class="main-header">
-    <h1>FLOMIS</h1>
-    <p class="subtitle">
-      Flood Mitigation Pump House Information System
-    </p>
+    <div class="header-content">
+      <div>
+        <h1>FLOMIS</h1>
+        <p class="subtitle">
+          Flood Mitigation Pump House Information System
+        </p>
+      </div>
+      <a href="logs.html" class="logs-button">
+        📋 View Logs
+      </a>
+    </div>
   </header>
   <!-- ===================================== -->
   <!-- GLOBAL ALERT (for future use) -->
