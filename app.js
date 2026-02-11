@@ -1,12 +1,11 @@
 // ========================================
 // FLOMIS DASHBOARD - app.js
-// Firebase v10 (Modular)
-// With REALISTIC STAGGERED PUMP CYCLING
+// Industrial Realistic Simulation Engine
 // ========================================
 
 import { initializeApp } from
   "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getDatabase, ref, onValue } from
+import { getDatabase, ref, onValue, push, set } from
   "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
 // ========================================
@@ -29,45 +28,59 @@ const app = initializeApp(firebaseConfig);
 const database = getDatabase(app);
 
 // ========================================
-// MOCK MODE CONFIG
+// SIMULATION MODE
 // ========================================
-const MOCK_MODE = true;        // 🔴 SET false when hardware is live
-const MOCK_INTERVAL = 5000;    // ms (5 seconds - for display update)
-const CYCLE_DURATION = 2 * 60 * 1000;  // 2 minutes per pump switch
-const MAX_CYCLES = 20;         // 20 start/stop cycles total
-const REST_DURATION = 60 * 60 * 1000;  // 1 hour rest
+const SIMULATION_MODE = true; // Set false when ESP32 connected
+const UPDATE_INTERVAL = 5000; // 5 seconds
+const PHYSICS_TICK = 10000;   // 10 seconds (water level updates)
 
 // ========================================
-// GLOBAL CYCLE STATE
+// STATION STATE (Dynamic Real-Time)
 // ========================================
-const globalCycle = {
-  cycleCount: 0,
-  cyclePattern: 0,  // 0, 1, 2 (repeating pattern)
-  lastSwitchTime: Date.now(),
-  isResting: false,
-  restStartTime: null
-};
-
-// ========================================
-// PUMP CYCLE STATE TRACKING
-// ========================================
-const pumpState = {
+const stationState = {
   ps01_engkabang: {
-    activePump: 1,  // PS1 has 1 pump (always pump 1)
-    highWaterLevel: 2.5,
-    lowWaterLevel: 1.7
+    name: "Pump Station No.1 Sungai Engkabang",
+    waterLevel: 2.2,          // Current level (m)
+    highThreshold: 2.5,       // Start pump at this level
+    lowThreshold: 1.7,        // Stop pump at this level
+    pumpRunning: false,
+    pumpCurrent: 0,
+    lastStartTime: null,
+    lastStopTime: null,
+    dutyPump: 1               // Always 1 for single-pump stations
   },
   ps02_resan: {
-    activePump: 1,  // PS2 has 1 pump (always pump 1)
-    highWaterLevel: 2.3,
-    lowWaterLevel: 1.7
+    name: "Pump Station No.2 Sungai Resan",
+    waterLevel: 2.0,
+    highThreshold: 2.3,
+    lowThreshold: 1.7,
+    pumpRunning: false,
+    pumpCurrent: 0,
+    lastStartTime: null,
+    lastStopTime: null,
+    dutyPump: 1
   },
   ps03_ekdee: {
-    activePump: 1,  // PS3 has 3 pumps, start with pump 1
-    highWaterLevel: 2.0,
-    lowWaterLevel: 1.7
+    name: "Pump Station No.3 Sungai Ek Dee",
+    waterLevel: 1.9,
+    highThreshold: 2.0,
+    lowThreshold: 1.7,
+    pumpRunning: false,
+    activePump: 0,            // 0=none, 1/2/3=active pump
+    dutyPump: 1,              // Next pump to start (rotates)
+    pump1Current: 0,
+    pump2Current: 0,
+    pump3Current: 0,
+    lastStartTime: null,
+    lastStopTime: null
   }
 };
+
+// ========================================
+// PHYSICS CONSTANTS
+// ========================================
+const WATER_RISE_RATE = 0.05;   // m per tick (simulates rainfall)
+const PUMP_RATE = 0.08;          // m per tick (pump drainage)
 
 // ========================================
 // HELPERS
@@ -92,128 +105,190 @@ function random(min, max, decimals = 1) {
 }
 
 // ========================================
-// GLOBAL CYCLE LOGIC
+// EVENT LOGGER (Writes to Firebase)
 // ========================================
-function updateGlobalCycle() {
-  const now = Date.now();
-  const timeSinceSwitch = now - globalCycle.lastSwitchTime;
+function writeLog(stationId, event, details, waterLevel, pumpCurrent) {
+  if (!SIMULATION_MODE) return; // Only log in simulation
+  
+  const logEntry = {
+    timestamp: Date.now(),
+    station: stationId,
+    event: event,
+    details: details,
+    waterLevel: waterLevel.toFixed(1) + "m",
+    pumpCurrent: pumpCurrent.toFixed(1) + "A",
+    duration: "-"
+  };
 
-  // Check if in rest period
-  if (globalCycle.isResting) {
-    const restTime = now - globalCycle.restStartTime;
-    if (restTime >= REST_DURATION) {
-      // Rest complete, reset everything
-      globalCycle.isResting = false;
-      globalCycle.cycleCount = 0;
-      globalCycle.cyclePattern = 0;
-      globalCycle.lastSwitchTime = now;
-      // Reset all pumps to pump 1
-      pumpState.ps03_ekdee.activePump = 1;
-    }
-    return; // Stay in rest mode
-  }
-
-  // Check if it's time to switch (2 minutes elapsed)
-  if (timeSinceSwitch >= CYCLE_DURATION) {
-    globalCycle.cycleCount++;
-    
-    // Check if reached 20 cycles
-    if (globalCycle.cycleCount >= MAX_CYCLES) {
-      globalCycle.isResting = true;
-      globalCycle.restStartTime = now;
-      return;
-    }
-
-    // Advance pattern: 0 → 1 → 2 → 0 (repeating)
-    globalCycle.cyclePattern = (globalCycle.cyclePattern + 1) % 3;
-    
-    // Rotate PS3 pump on each switch
-    pumpState.ps03_ekdee.activePump = (pumpState.ps03_ekdee.activePump % 3) + 1;
-    
-    globalCycle.lastSwitchTime = now;
-  }
+  // Write to Firebase logs
+  const logsRef = ref(database, "logs");
+  push(logsRef, logEntry);
+  
+  console.log(`[LOG] ${stationId}: ${event} - ${details}`);
 }
 
 // ========================================
-// DETERMINE IF STATION SHOULD RUN
+// WATER PHYSICS ENGINE
 // ========================================
-function shouldStationRun(stationId) {
-  if (globalCycle.isResting) return false;
-  
-  // Pattern 0: Ek Dee + Resan only
-  // Pattern 1: All 3 stations
-  // Pattern 2: Ek Dee only
-  
-  switch (globalCycle.cyclePattern) {
-    case 0: // Ek Dee + Resan
-      return stationId === "ps03_ekdee" || stationId === "ps02_resan";
-    case 1: // All stations
-      return true;
-    case 2: // Ek Dee only
-      return stationId === "ps03_ekdee";
-    default:
-      return false;
-  }
+function updateWaterPhysics() {
+  Object.keys(stationState).forEach(stationId => {
+    const state = stationState[stationId];
+    
+    if (stationId === "ps03_ekdee") {
+      // PS3 logic
+      if (state.activePump > 0) {
+        // Pump is running - water decreases
+        state.waterLevel -= PUMP_RATE;
+      } else {
+        // No pump - water rises
+        state.waterLevel += WATER_RISE_RATE;
+      }
+    } else {
+      // PS1 & PS2 logic
+      if (state.pumpRunning) {
+        state.waterLevel -= PUMP_RATE;
+      } else {
+        state.waterLevel += WATER_RISE_RATE;
+      }
+    }
+
+    // Keep water level in realistic bounds
+    state.waterLevel = Math.max(1.5, Math.min(3.0, state.waterLevel));
+  });
 }
 
 // ========================================
-// MOCK DATA GENERATOR
+// PUMP CONTROL LOGIC (Float Switch)
 // ========================================
-function generateMockStation(id, name) {
-  const isPS3 = id === "ps03_ekdee";
-  const state = pumpState[id];
-  const now = new Date().toISOString();
+function updatePumpLogic() {
+  Object.keys(stationState).forEach(stationId => {
+    const state = stationState[stationId];
+    const now = new Date().toISOString();
 
-  // Update global cycle
-  updateGlobalCycle();
+    if (stationId === "ps03_ekdee") {
+      // ========== PS3: 3 PUMPS ==========
+      
+      // Check if should START pump
+      if (state.activePump === 0 && state.waterLevel >= state.highThreshold) {
+        // Start duty pump
+        state.activePump = state.dutyPump;
+        state.lastStartTime = now;
+        
+        // Set current for active pump
+        const current = random(15, 25);
+        if (state.activePump === 1) state.pump1Current = current;
+        if (state.activePump === 2) state.pump2Current = current;
+        if (state.activePump === 3) state.pump3Current = current;
 
-  // Determine if this station should be running
-  const shouldRun = shouldStationRun(id);
-  
-  // Determine water level (HIGH during cycles, LOW during rest)
-  const waterLevel = globalCycle.isResting ? state.lowWaterLevel : state.highWaterLevel;
+        // Write log
+        writeLog(
+          stationId,
+          "PUMP_START",
+          `Pump ${state.activePump} started`,
+          state.waterLevel,
+          current
+        );
+      }
+      
+      // Check if should STOP pump
+      else if (state.activePump > 0 && state.waterLevel <= state.lowThreshold) {
+        const stoppingPump = state.activePump;
+        
+        // Write log BEFORE stopping
+        writeLog(
+          stationId,
+          "PUMP_STOP",
+          `Pump ${stoppingPump} stopped`,
+          state.waterLevel,
+          0
+        );
 
-  const status = shouldRun ? "RUNNING" : "STOPPED";
+        // Stop pump
+        state.activePump = 0;
+        state.pump1Current = 0;
+        state.pump2Current = 0;
+        state.pump3Current = 0;
+        state.lastStopTime = now;
+
+        // Rotate duty pump for next start (1→2→3→1)
+        state.dutyPump = (state.dutyPump % 3) + 1;
+      }
+
+    } else {
+      // ========== PS1 & PS2: SINGLE PUMP ==========
+      
+      // Check if should START
+      if (!state.pumpRunning && state.waterLevel >= state.highThreshold) {
+        state.pumpRunning = true;
+        state.pumpCurrent = random(12, 22);
+        state.lastStartTime = now;
+
+        writeLog(
+          stationId,
+          "PUMP_START",
+          "Pump started",
+          state.waterLevel,
+          state.pumpCurrent
+        );
+      }
+      
+      // Check if should STOP
+      else if (state.pumpRunning && state.waterLevel <= state.lowThreshold) {
+        writeLog(
+          stationId,
+          "PUMP_STOP",
+          "Pump stopped",
+          state.waterLevel,
+          0
+        );
+
+        state.pumpRunning = false;
+        state.pumpCurrent = 0;
+        state.lastStopTime = now;
+      }
+    }
+  });
+}
+
+// ========================================
+// GENERATE TELEMETRY FROM STATE
+// ========================================
+function generateTelemetryFromState(stationId) {
+  const state = stationState[stationId];
+  const isPS3 = stationId === "ps03_ekdee";
+
+  let status = "STOPPED";
+  if (isPS3) {
+    status = state.activePump > 0 ? "RUNNING" : "STOPPED";
+  } else {
+    status = state.pumpRunning ? "RUNNING" : "STOPPED";
+  }
 
   let telemetry = {
     status: status,
     water_level: {
-      value: waterLevel,
+      value: parseFloat(state.waterLevel.toFixed(1)),
       unit: "m"
     },
     trip_status: false,
     trip_reason: "",
-    last_updated: now
+    last_updated: new Date().toISOString()
   };
 
   if (isPS3) {
-    // PS3 has 3 pumps - only active pump runs (if station should run)
-    telemetry.pump_1_current = { 
-      value: (state.activePump === 1 && shouldRun) ? random(15, 25) : 0, 
-      unit: "A" 
-    };
-    telemetry.pump_2_current = { 
-      value: (state.activePump === 2 && shouldRun) ? random(15, 25) : 0, 
-      unit: "A" 
-    };
-    telemetry.pump_3_current = { 
-      value: (state.activePump === 3 && shouldRun) ? random(15, 25) : 0, 
-      unit: "A" 
-    };
+    telemetry.pump_1_current = { value: state.pump1Current, unit: "A" };
+    telemetry.pump_2_current = { value: state.pump2Current, unit: "A" };
+    telemetry.pump_3_current = { value: state.pump3Current, unit: "A" };
   } else {
-    // PS1 and PS2 have 1 pump
-    telemetry.pump_current = { 
-      value: shouldRun ? random(12, 22) : 0, 
-      unit: "A" 
-    };
+    telemetry.pump_current = { value: state.pumpCurrent, unit: "A" };
   }
 
   return {
-    name,
-    telemetry,
+    name: state.name,
+    telemetry: telemetry,
     runtime: {
-      last_start_time: shouldRun ? new Date(globalCycle.lastSwitchTime).toISOString() : null,
-      last_stop_time: !shouldRun && globalCycle.isResting ? new Date(globalCycle.restStartTime).toISOString() : null
+      last_start_time: state.lastStartTime,
+      last_stop_time: state.lastStopTime
     }
   };
 }
@@ -226,13 +301,11 @@ function createStationCard(id, station) {
   const runtime = station.runtime || {};
   const status = telemetry.status || "UNKNOWN";
 
-  // ---- Stale data detection ----
+  // Stale data detection
   let staleWarning = "";
   if (telemetry.last_updated) {
-    const ageMs =
-      Date.now() - new Date(telemetry.last_updated).getTime();
-
-    if (ageMs > 5 * 60 * 1000) { // 5 minutes
+    const ageMs = Date.now() - new Date(telemetry.last_updated).getTime();
+    if (ageMs > 5 * 60 * 1000) {
       staleWarning = `
         <div class="stale-warning">
           ⚠️ Data may be stale (no update > 5 min)
@@ -244,14 +317,11 @@ function createStationCard(id, station) {
   const card = document.createElement("div");
   card.className = "station-card";
 
-  // ---- Check if this is PS3 (multiple pumps) ----
   const isPS3 = id === "ps03_ekdee";
 
-  // Build telemetry grid based on station type
   let telemetryHTML = "";
   
   if (isPS3) {
-    // PS3 has 3 separate pump currents
     telemetryHTML = `
       <div class="telemetry-grid">
         <div class="telemetry-item">
@@ -263,7 +333,6 @@ function createStationCard(id, station) {
             </span>
           </div>
         </div>
-
         <div class="telemetry-item">
           <div class="telemetry-label">Pump 2 Current</div>
           <div class="telemetry-value">
@@ -273,7 +342,6 @@ function createStationCard(id, station) {
             </span>
           </div>
         </div>
-
         <div class="telemetry-item">
           <div class="telemetry-label">Pump 3 Current</div>
           <div class="telemetry-value">
@@ -283,7 +351,6 @@ function createStationCard(id, station) {
             </span>
           </div>
         </div>
-
         <div class="telemetry-item">
           <div class="telemetry-label">Water Level</div>
           <div class="telemetry-value">
@@ -296,7 +363,6 @@ function createStationCard(id, station) {
       </div>
     `;
   } else {
-    // PS1 and PS2 have single pump current
     telemetryHTML = `
       <div class="telemetry-grid">
         <div class="telemetry-item">
@@ -308,7 +374,6 @@ function createStationCard(id, station) {
             </span>
           </div>
         </div>
-
         <div class="telemetry-item">
           <div class="telemetry-label">Water Level</div>
           <div class="telemetry-value">
@@ -331,7 +396,6 @@ function createStationCard(id, station) {
     </div>
 
     ${staleWarning}
-
     ${telemetryHTML}
 
     <div class="runtime-section">
@@ -364,78 +428,77 @@ function createStationCard(id, station) {
 }
 
 // ========================================
-// LOAD DATA FROM FIREBASE
+// RENDER DASHBOARD
 // ========================================
-function loadPumpStations() {
+function renderDashboard() {
   const container = document.getElementById("stations-container");
+  container.innerHTML = "";
 
-  // ================= MOCK MODE =================
-  if (MOCK_MODE) {
-    const mockStations = {
-      ps01_engkabang: generateMockStation(
-        "ps01_engkabang",
-        "Pump Station No.1 Sungai Engkabang"
-      ),
-      ps02_resan: generateMockStation(
-        "ps02_resan",
-        "Pump Station No.2 Sungai Resan"
-      ),
-      ps03_ekdee: generateMockStation(
-        "ps03_ekdee",
-        "Pump Station No.3 Sungai Ek Dee"
-      )
-    };
+  ["ps01_engkabang", "ps02_resan", "ps03_ekdee"].forEach(id => {
+    const stationData = generateTelemetryFromState(id);
+    container.appendChild(createStationCard(id, stationData));
+  });
+}
 
-    function renderMock() {
-      container.innerHTML = "";
-      ["ps01_engkabang", "ps02_resan", "ps03_ekdee"].forEach(id => {
-        // Regenerate data each time
-        mockStations[id] = generateMockStation(
-          id,
-          mockStations[id].name
-        );
-        container.appendChild(createStationCard(id, mockStations[id]));
-      });
-    }
+// ========================================
+// SIMULATION ENGINE
+// ========================================
+function startSimulation() {
+  // Physics tick (water movement)
+  setInterval(() => {
+    updateWaterPhysics();
+  }, PHYSICS_TICK);
 
-    renderMock();
-    setInterval(renderMock, MOCK_INTERVAL);
-    return;
-  }
+  // Control logic tick (pump decisions)
+  setInterval(() => {
+    updatePumpLogic();
+  }, PHYSICS_TICK);
 
-  // ================= LIVE FIREBASE MODE =================
-  container.innerHTML =
-    '<div class="loading">Loading pump stations...</div>';
+  // Display update tick
+  setInterval(() => {
+    renderDashboard();
+  }, UPDATE_INTERVAL);
+
+  // Initial render
+  renderDashboard();
+}
+
+// ========================================
+// LOAD FROM FIREBASE (Real Mode)
+// ========================================
+function loadFromFirebase() {
+  const container = document.getElementById("stations-container");
+  container.innerHTML = '<div class="loading">Loading pump stations...</div>';
 
   const stationsRef = ref(database, "pump_stations/pump_stations");
 
-  onValue(
-    stationsRef,
-    (snapshot) => {
-      const data = snapshot.val();
-      container.innerHTML = "";
+  onValue(stationsRef, (snapshot) => {
+    const data = snapshot.val();
+    container.innerHTML = "";
 
-      if (!data) {
-        container.innerHTML =
-          '<div class="error">No pump stations found.</div>';
-        return;
-      }
-
-      ["ps01_engkabang", "ps02_resan", "ps03_ekdee"].forEach((id) => {
-        if (data[id]) {
-          container.appendChild(createStationCard(id, data[id]));
-        }
-      });
-    },
-    (error) => {
-      console.error(error);
-      container.innerHTML =
-        `<div class="error">Firebase error: ${error.message}</div>`;
+    if (!data) {
+      container.innerHTML = '<div class="error">No pump stations found.</div>';
+      return;
     }
-  );
+
+    ["ps01_engkabang", "ps02_resan", "ps03_ekdee"].forEach((id) => {
+      if (data[id]) {
+        container.appendChild(createStationCard(id, data[id]));
+      }
+    });
+  }, (error) => {
+    console.error(error);
+    container.innerHTML = `<div class="error">Firebase error: ${error.message}</div>`;
+  });
 }
 
 // ========================================
 // START APP
 // ========================================
-loadPumpStations();
+if (SIMULATION_MODE) {
+  console.log("🔧 SIMULATION MODE - Running physics engine");
+  startSimulation();
+} else {
+  console.log("📡 LIVE MODE - Reading from Firebase");
+  loadFromFirebase();
+}
