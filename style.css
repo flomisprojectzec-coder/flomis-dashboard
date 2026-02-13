@@ -1,17 +1,21 @@
 /* =====================================
    FLOMIS DASHBOARD - STYLE.CSS
-   Industrial / SCADA-inspired theme
+   Industrial / SCADA-Inspired Theme
    ===================================== */
-/* ---------- Base ---------- */
-* {
-  box-sizing: border-box;
-}
+
+/* ---------- Reset ---------- */
+* { box-sizing: border-box; }
+
 body {
   margin: 0;
   font-family: "Segoe UI", Arial, sans-serif;
   background: #f2f4f7;
   color: #333;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
+
 /* ---------- Header ---------- */
 .main-header {
   background: #1f2933;
@@ -19,16 +23,19 @@ body {
   padding: 16px 24px;
   border-bottom: 4px solid #2563eb;
 }
+
 .main-header h1 {
   margin: 0;
   font-size: 24px;
   letter-spacing: 1px;
 }
+
 .subtitle {
-  margin-top: 4px;
+  margin: 4px 0 0 0;
   font-size: 13px;
   opacity: 0.85;
 }
+
 /* ---------- Footer ---------- */
 .main-footer {
   background: #1f2933;
@@ -36,35 +43,54 @@ body {
   text-align: center;
   padding: 10px;
   font-size: 12px;
+  margin-top: auto;
 }
+
 /* ---------- Main Layout ---------- */
 main {
   padding: 20px;
+  flex: 1;
 }
+
+/* ---------- Dashboard Grid ---------- */
 #stations-container {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 16px;
 }
+
 /* ---------- Station Card ---------- */
 .station-card {
   background: #ffffff;
   border-radius: 6px;
   padding: 16px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-  border-left: 6px solid #9ca3af; /* default STOPPED */
+  border-left: 6px solid #9ca3af; /* Default: STOPPED grey */
 }
+
+/* Card border changes with status */
+.station-card:has(.status-running) {
+  border-left-color: #16a34a;
+}
+.station-card:has(.status-tripped) {
+  border-left-color: #dc2626;
+}
+
 /* ---------- Station Header ---------- */
 .station-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 12px;
+  gap: 8px;
 }
+
 .station-name {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
+  line-height: 1.3;
 }
+
 /* ---------- Status Badge ---------- */
 .status-badge {
   padding: 4px 10px;
@@ -72,75 +98,86 @@ main {
   font-size: 12px;
   font-weight: bold;
   color: #ffffff;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
-/* Status Colors */
-.status-running {
-  background: #16a34a;
-}
-.status-stopped {
-  background: #6b7280;
-}
+
+.status-running { background: #16a34a; }
+.status-stopped { background: #6b7280; }
 .status-tripped {
   background: #dc2626;
+  animation: pulse 1.5s infinite;
 }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.7; }
+}
+
 /* ---------- Stale Warning ---------- */
 .stale-warning {
   background: #fef3c7;
   border-left: 4px solid #f59e0b;
   padding: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   color: #92400e;
   font-size: 13px;
   border-radius: 4px;
 }
+
 /* ---------- Telemetry Grid ---------- */
 .telemetry-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 10px;
   margin-bottom: 12px;
 }
+
 .telemetry-item {
   background: #f8fafc;
   padding: 10px;
   border-radius: 4px;
   text-align: center;
 }
+
 .telemetry-label {
   font-size: 12px;
   color: #64748b;
+  margin-bottom: 4px;
 }
+
 .telemetry-value {
   font-size: 20px;
   font-weight: 600;
-  margin-top: 4px;
+  color: #1e293b;
 }
+
 .telemetry-unit {
   font-size: 12px;
   color: #475569;
   margin-left: 2px;
 }
+
 /* ---------- Runtime Section ---------- */
 .runtime-section {
   font-size: 13px;
+  color: #374151;
   margin-bottom: 10px;
 }
-.runtime-item {
-  margin-bottom: 4px;
-}
+
+.runtime-item { margin-bottom: 4px; }
+
 /* ---------- Trip Alert ---------- */
 .trip-alert {
   background: #fee2e2;
   border-left: 4px solid #dc2626;
   color: #991b1b;
-  padding: 8px;
+  padding: 8px 10px;
   font-size: 13px;
   border-radius: 4px;
 }
-.trip-reason {
-  font-size: 12px;
-}
-/* ---------- Global Alert (future) ---------- */
+
+/* ---------- Global Alert ---------- */
 #global-alert {
   background: #b91c1c;
   color: #ffffff;
@@ -148,15 +185,32 @@ main {
   font-weight: bold;
   text-align: center;
 }
-/* ---------- Loading & Error ---------- */
+
+/* ---------- Loading & Error States ---------- */
 .loading,
 .error {
   background: #ffffff;
-  padding: 16px;
+  padding: 20px;
   border-radius: 6px;
   text-align: center;
   font-weight: 500;
+  color: #6b7280;
 }
-.error {
-  color: #dc2626;
+
+.error { color: #dc2626; }
+
+/* ---------- No-logs notice ---------- */
+.no-logs {
+  text-align: center;
+  padding: 40px;
+  color: #6b7280;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 600px) {
+  main { padding: 12px; }
+  #stations-container {
+    grid-template-columns: 1fr;
+  }
+  .telemetry-value { font-size: 18px; }
 }
