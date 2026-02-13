@@ -4,10 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FLOMIS Dashboard</title>
-  <!-- Main stylesheet -->
   <link rel="stylesheet" href="style.css" />
   <style>
-    /* Header button styling */
     .header-content {
       display: flex;
       justify-content: space-between;
@@ -15,7 +13,6 @@
       flex-wrap: wrap;
       gap: 10px;
     }
-
     .logs-button {
       background: #3b82f6;
       color: white;
@@ -30,16 +27,11 @@
       align-items: center;
       gap: 8px;
     }
-
-    .logs-button:hover {
-      background: #2563eb;
-    }
+    .logs-button:hover { background: #2563eb; }
   </style>
 </head>
 <body>
-  <!-- ===================================== -->
-  <!-- HEADER -->
-  <!-- ===================================== -->
+
   <header class="main-header">
     <div class="header-content">
       <div>
@@ -48,34 +40,22 @@
           Flood Mitigation Pump House Information System
         </p>
       </div>
-      <a href="logs.html" class="logs-button">
-        📋 View Logs
-      </a>
+      <a href="logs.html" class="logs-button">📋 View Logs</a>
     </div>
   </header>
-  <!-- ===================================== -->
-  <!-- GLOBAL ALERT (for future use) -->
-  <!-- ===================================== -->
+
   <div id="global-alert" style="display:none;"></div>
-  <!-- ===================================== -->
-  <!-- MAIN CONTENT -->
-  <!-- ===================================== -->
+
   <main>
     <div id="stations-container">
-      <!-- Pump station cards injected by app.js -->
+      <!-- Station cards injected by app.js -->
     </div>
   </main>
-  <!-- ===================================== -->
-  <!-- FOOTER -->
-  <!-- ===================================== -->
+
   <footer class="main-footer">
-    <p>
-      © DID Sibu • FLOMIS v1.0
-    </p>
+    <p>© DID Sibu • FLOMIS v1.0</p>
   </footer>
-  <!-- ===================================== -->
-  <!-- APP SCRIPT (MODULE REQUIRED) -->
-  <!-- ===================================== -->
+
   <script type="module" src="app.js"></script>
 </body>
 </html>
