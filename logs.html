@@ -6,74 +6,54 @@
   <title>FLOMIS - Event Logs</title>
   <link rel="stylesheet" href="style.css" />
   <style>
-    /* Additional styles for logs page */
     .logs-header {
       display: flex;
       justify-content: space-between;
-      align-items: center;
+      align-items: flex-start;
       margin-bottom: 20px;
       flex-wrap: wrap;
-      gap: 10px;
+      gap: 12px;
     }
-
     .logs-controls {
       display: flex;
       gap: 10px;
       flex-wrap: wrap;
+      align-items: center;
     }
-
     .btn {
-      padding: 10px 20px;
+      padding: 10px 18px;
       border: none;
       border-radius: 6px;
       font-weight: 600;
       cursor: pointer;
       font-size: 14px;
     }
-
-    .btn-primary {
-      background: #2563eb;
-      color: white;
-    }
-
-    .btn-primary:hover {
-      background: #1d4ed8;
-    }
-
-    .btn-secondary {
-      background: #6b7280;
-      color: white;
-    }
-
-    .btn-secondary:hover {
-      background: #4b5563;
-    }
-
+    .btn-primary  { background: #2563eb; color: white; }
+    .btn-primary:hover  { background: #1d4ed8; }
+    .btn-secondary { background: #6b7280; color: white; }
+    .btn-secondary:hover { background: #4b5563; }
     .filter-group {
       display: flex;
-      gap: 10px;
       align-items: center;
+      gap: 6px;
+      font-size: 14px;
     }
-
     .filter-select {
-      padding: 8px 12px;
+      padding: 8px 10px;
       border: 1px solid #d1d5db;
       border-radius: 6px;
       font-size: 14px;
     }
-
     .logs-table-container {
       background: white;
       border-radius: 6px;
       overflow-x: auto;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
     }
-
     .logs-table {
       width: 100%;
       border-collapse: collapse;
     }
-
     .logs-table th {
       background: #f9fafb;
       padding: 12px;
@@ -84,73 +64,44 @@
       border-bottom: 2px solid #e5e7eb;
       white-space: nowrap;
     }
-
     .logs-table td {
-      padding: 12px;
+      padding: 11px 12px;
       border-bottom: 1px solid #f3f4f6;
       font-size: 14px;
     }
-
-    .logs-table tr:hover {
-      background: #f9fafb;
-    }
-
+    .logs-table tr:hover { background: #f9fafb; }
     .event-badge {
       display: inline-block;
-      padding: 4px 8px;
+      padding: 3px 8px;
       border-radius: 4px;
       font-size: 12px;
       font-weight: 600;
+      white-space: nowrap;
     }
-
-    .event-start {
-      background: #d1fae5;
-      color: #065f46;
-    }
-
-    .event-stop {
-      background: #e5e7eb;
-      color: #374151;
-    }
-
-    .event-trip {
-      background: #fee2e2;
-      color: #991b1b;
-    }
-
-    .event-cycle {
-      background: #dbeafe;
-      color: #1e40af;
-    }
-
-    .event-rest {
-      background: #fef3c7;
-      color: #92400e;
-    }
-
+    .event-start  { background: #d1fae5; color: #065f46; }
+    .event-stop   { background: #e5e7eb; color: #374151; }
+    .event-trip   { background: #fee2e2; color: #991b1b; }
     .log-count {
-      font-size: 14px;
+      font-size: 13px;
       color: #6b7280;
+      margin-top: 4px;
     }
-
     .back-link {
       color: #2563eb;
       text-decoration: none;
       font-weight: 600;
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
+      font-size: 14px;
     }
-
-    .back-link:hover {
-      text-decoration: underline;
+    .back-link:hover { text-decoration: underline; }
+    .no-logs {
+      text-align: center;
+      padding: 40px;
+      color: #6b7280;
     }
   </style>
 </head>
 <body>
-  <!-- ===================================== -->
-  <!-- HEADER -->
-  <!-- ===================================== -->
+
   <header class="main-header">
     <div>
       <h1>FLOMIS - Event Logs</h1>
@@ -160,9 +111,6 @@
     </div>
   </header>
 
-  <!-- ===================================== -->
-  <!-- MAIN CONTENT -->
-  <!-- ===================================== -->
   <main>
     <div class="logs-header">
       <div>
@@ -185,14 +133,15 @@
             <option value="all">All Events</option>
             <option value="PUMP_START">Pump Start</option>
             <option value="PUMP_STOP">Pump Stop</option>
-            <option value="TRIP">Trip/Fault</option>
-            <option value="CYCLE_COMPLETE">Cycle Complete</option>
-            <option value="REST_START">Rest Start</option>
-            <option value="REST_END">Rest End</option>
+            <option value="TRIP">Trip / Fault</option>
           </select>
         </div>
-        <button id="download-csv" class="btn btn-primary">📥 Download CSV</button>
-        <button id="refresh-logs" class="btn btn-secondary">🔄 Refresh</button>
+        <button id="download-csv" class="btn btn-primary">
+          📥 Download CSV
+        </button>
+        <button id="refresh-logs" class="btn btn-secondary">
+          🔄 Refresh
+        </button>
       </div>
     </div>
 
@@ -211,18 +160,13 @@
         </thead>
         <tbody id="logs-table-body">
           <tr>
-            <td colspan="7" style="text-align: center; padding: 40px;">
-              Loading logs...
-            </td>
+            <td colspan="7" class="no-logs">Loading logs...</td>
           </tr>
         </tbody>
       </table>
     </div>
   </main>
 
-  <!-- ===================================== -->
-  <!-- FOOTER -->
-  <!-- ===================================== -->
   <footer class="main-footer">
     <p>© DID Sibu • FLOMIS v1.0</p>
   </footer>
