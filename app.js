@@ -225,10 +225,8 @@ function generateSimulationTelemetry(stationId) {
 
 // ========================================
 // LISTEN TO PS3 REAL DATA FROM FIREBASE
-// FIX 1: Stale data (>5 min) → force STOPPED display
-// FIX 2: last_start/last_stop only write on real
-//        STOPPED→RUNNING or RUNNING→STOPPED transition
-//        AND only when data is NOT stale
+// FIX: Runtime stored in ps03Runtime object
+//      (outside listener so it persists)
 // ========================================
 function listenToPS3RealData() {
   const ps03Ref = ref(
@@ -243,29 +241,13 @@ function listenToPS3RealData() {
     const currentStatus = data.telemetry?.status || "STOPPED";
     const now = new Date().toISOString();
 
-    // ---- STALE CHECK ----
-    // If last_updated is more than 5 minutes ago,
-    // treat as STOPPED regardless of Firebase value
-    const lastUpdated = data.telemetry?.last_updated;
-    const asNum = Number(lastUpdated);
-    const ts = isNaN(asNum)
-      ? new Date(lastUpdated).getTime()
-      : asNum;
-    const isStale = !lastUpdated || (Date.now() - ts) > 5 * 60 * 1000;
-
-    // Override status to STOPPED if data is stale
-    const effectiveStatus = isStale ? "STOPPED" : currentStatus;
-    data.telemetry.status = effectiveStatus;
-
-    // ---- TRANSITION DETECTION ----
-    // Only write last_start/last_stop on a REAL status change
-    // AND only when data is fresh (not stale)
-    if (!isStale && effectiveStatus !== ps03PreviousStatus) {
+    // Detect status transition
+    if (currentStatus !== ps03PreviousStatus) {
       console.log(
-        `[PS3] Status: ${ps03PreviousStatus} → ${effectiveStatus}`
+        `[PS3] Status: ${ps03PreviousStatus} → ${currentStatus}`
       );
 
-      if (effectiveStatus === "RUNNING") {
+      if (currentStatus === "RUNNING") {
         // Record start time
         ps03Runtime.last_start_time = now;
 
@@ -285,7 +267,7 @@ function listenToPS3RealData() {
         writeLog("ps03_ekdee", "PUMP_START",
           `${activePump} started`, wl, maxCurrent);
       }
-      else if (effectiveStatus === "STOPPED") {
+      else if (currentStatus === "STOPPED") {
         // Record stop time
         ps03Runtime.last_stop_time = now;
 
@@ -294,13 +276,7 @@ function listenToPS3RealData() {
           "Pump stopped", wl, 0);
       }
 
-      ps03PreviousStatus = effectiveStatus;
-    }
-
-    // If stale, sync previousStatus to STOPPED
-    // so when ESP32 comes back online, transition fires correctly
-    if (isStale) {
-      ps03PreviousStatus = "STOPPED";
+      ps03PreviousStatus = currentStatus;
     }
 
     // Merge persistent runtime into Firebase data
